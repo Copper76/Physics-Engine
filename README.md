@@ -1,4 +1,4 @@
-# VulkanRenderer
+# Physics Engine
 
 Physics engine made using the tutorials of [Game Physics In One Weekend book series](https://gamephysicsweekend.github.io/). The renderer came with the book while the code for the engine is hand-coded by me.
 
