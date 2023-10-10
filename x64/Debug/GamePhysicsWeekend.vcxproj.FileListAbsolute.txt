@@ -1,0 +1,2 @@
+E:\GitStuff\VulkanRenderer-main\x64\Debug\GamePhysicsWeekend.exe
+E:\GitStuff\VulkanRenderer-main-mine\x64\Debug\GamePhysicsWeekend.exe
