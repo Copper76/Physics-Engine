@@ -4,6 +4,148 @@
 #include "Intersections.h"
 #include "GJK.h"
 
+bool SphereSphereStatic(const ShapeSphere* sphereA, const ShapeSphere* sphereB, const Vec3& posA, const Vec3& posB, Vec3& ptOnA, Vec3& ptOnB) {
+	const Vec3 ab = posB - posA;
+	Vec3 norm = ab;
+	norm.Normalize();
+
+	ptOnA = posA + norm * sphereA->m_radius;
+	ptOnB = posB - norm * sphereB->m_radius;
+
+	const float radiusAB = sphereA->m_radius + sphereB->m_radius;
+	const float lengthSquare = ab.GetLengthSqr();
+	if (lengthSquare <= (radiusAB * radiusAB)) {
+		return true;
+	}
+	return false;
+}
+
+/*
+====================================================
+Intersect Static
+====================================================
+*/
+bool Intersect(Body* bodyA, Body* bodyB, contact_t& contact) {
+	contact.bodyA = bodyA;
+	contact.bodyB = bodyB;
+	contact.timeOfImpact = 0.0f;
+
+	if (bodyA->m_shape->GetType() == Shape::SHAPE_SPHERE && bodyB->m_shape->GetType() == Shape::SHAPE_SPHERE) {
+		const ShapeSphere* sphereA = (const ShapeSphere*)bodyA->m_shape;
+		const ShapeSphere* sphereB = (const ShapeSphere*)bodyB->m_shape;
+
+		Vec3 posA = bodyA->m_position;
+		Vec3 posB = bodyB->m_position;
+
+		if (SphereSphereStatic(sphereA, sphereB, posA, posB, contact.ptOnA_WorldSpace, contact.ptOnB_WorldSpace)) {
+			contact.normal = posA - posB;
+			contact.normal.Normalize();
+
+			contact.ptOnA_LocalSpace = bodyA->WorldSpaceToBodySpace(contact.ptOnA_WorldSpace);
+			contact.ptOnB_LocalSpace = bodyB->WorldSpaceToBodySpace(contact.ptOnB_WorldSpace);
+
+			Vec3 ab = bodyB->m_position - bodyA->m_position;
+			//distance betwen positions minus the radius of both spheres
+			float r = ab.GetMagnitude() - (sphereA->m_radius + sphereB->m_radius);
+			contact.separationDistance = r;
+			return true;
+		}
+	}
+	else {
+		Vec3 ptOnA;
+		Vec3 ptOnB;
+		const float bias = 0.001f;
+		if (GJK_DoesIntersect(bodyA, bodyB, bias, ptOnA, ptOnB)) {
+			Vec3 normal = ptOnB - ptOnA;
+			normal.Normalize();
+
+			ptOnA -= normal * bias;
+			ptOnB += normal * bias;
+
+			contact.normal = normal;
+
+			contact.ptOnA_WorldSpace = ptOnA;
+			contact.ptOnB_WorldSpace = ptOnB;
+
+			contact.ptOnA_LocalSpace = bodyA->WorldSpaceToBodySpace(contact.ptOnA_WorldSpace);
+			contact.ptOnB_LocalSpace = bodyB->WorldSpaceToBodySpace(contact.ptOnB_WorldSpace);
+
+			Vec3 ab = bodyB->m_position - bodyA->m_position;
+			//distance betwen contact points
+			float r = (ptOnA - ptOnB).GetMagnitude();
+			contact.separationDistance = -r;
+			return true;
+		}
+		GJK_ClosestPoints(bodyA, bodyB, ptOnA, ptOnB);
+		contact.ptOnA_WorldSpace = ptOnA;
+		contact.ptOnB_WorldSpace = ptOnB;
+
+		contact.ptOnA_LocalSpace = bodyA->WorldSpaceToBodySpace(contact.ptOnA_WorldSpace);
+		contact.ptOnB_LocalSpace = bodyB->WorldSpaceToBodySpace(contact.ptOnB_WorldSpace);
+
+		Vec3 ab = bodyB->m_position - bodyA->m_position;
+		//distance betwen contact points
+		float r = (ptOnA - ptOnB).GetMagnitude();
+		contact.separationDistance = r;
+	}
+	return false;
+}
+
+bool ConservativeAdvance(Body* bodyA, Body* bodyB, float dt, contact_t& contact) {
+	contact.bodyA = bodyA;
+	contact.bodyB = bodyB;
+
+	float toi = 0.0f;
+
+	int numIters = 0;
+
+	//Advance the positions of the bodies until they touch or there is no time left
+	while (dt > 0.0f) {
+		bool didIntersect = Intersect(bodyA, bodyB, contact);
+		if (didIntersect) {
+			contact.timeOfImpact = toi;
+			//move bodies back to where they were
+			bodyA->Update(-toi);
+			bodyB->Update(-toi);
+			return true;
+		}
+
+		++numIters;
+		if (numIters > 10) {
+			break;
+		}
+
+		//get the vector of between the closest points on A and B
+		Vec3 ab = contact.ptOnB_WorldSpace - contact.ptOnA_WorldSpace;
+		ab.Normalize();
+
+		Vec3 relativeVelocity = bodyA->m_linearVelocity - bodyB->m_linearVelocity;
+		float orthoSpeed = relativeVelocity.Dot(ab);
+
+		float angularSpeedA = bodyA->m_shape->FastestLinearSpeed(bodyA->m_angularVelocity, ab);
+		float angularSpeedB = bodyB->m_shape->FastestLinearSpeed(bodyB->m_angularVelocity, ab * -1.0f);
+		orthoSpeed += angularSpeedA + angularSpeedB;
+		//not going towards each other so no collision
+		if (orthoSpeed <= 0.0f) {
+			break;
+		}
+
+		float timeToGo = contact.separationDistance / orthoSpeed;
+		if (timeToGo > dt) {
+			break;
+		}
+
+		dt -= timeToGo;//wouldn't this move the objecs together in one step?, why the iterations then? Right, it is to avoid calculating objects that are spinning fast
+		toi += timeToGo;
+		bodyA->Update(timeToGo);
+		bodyB->Update(timeToGo);
+	}
+
+	bodyA->Update(-toi);
+	bodyB->Update(-toi);
+	return false;
+}
+
 bool RaySphere(const Vec3& rayStart, const Vec3& rayDir, const Vec3& sphereCenter, const float sphereRadius, float& t1, float& t2) {
 	const Vec3 m = sphereCenter - rayStart;
 	const float a = rayDir.Dot(rayDir);
@@ -73,11 +215,9 @@ bool SphereSphereDynamic(const ShapeSphere* shapeA, const ShapeSphere* shapeB, c
 	return true;
 }
 
-/*
-====================================================
-Intersect
-====================================================
-*/
+
+
+//dynamic
 bool Intersect(Body* bodyA, Body* bodyB, const float dt, contact_t& contact) {
 	contact.bodyA = bodyA;
 	contact.bodyB = bodyB;
@@ -93,7 +233,6 @@ bool Intersect(Body* bodyA, Body* bodyB, const float dt, contact_t& contact) {
 		Vec3 velB = bodyB->m_linearVelocity;
 
 		if (SphereSphereDynamic(sphereA, sphereB, posA, posB, velA, velB, dt, contact.ptOnA_WorldSpace, contact.ptOnB_WorldSpace, contact.timeOfImpact)) {
-			//move both bodies to point of impact
 			bodyA->Update(contact.timeOfImpact);
 			bodyB->Update(contact.timeOfImpact);
 
@@ -103,7 +242,6 @@ bool Intersect(Body* bodyA, Body* bodyB, const float dt, contact_t& contact) {
 			contact.normal = bodyA->m_position - bodyB->m_position;
 			contact.normal.Normalize();
 
-			//move both bodies to current time
 			bodyA->Update(-contact.timeOfImpact);
 			bodyB->Update(-contact.timeOfImpact);
 
@@ -113,6 +251,9 @@ bool Intersect(Body* bodyA, Body* bodyB, const float dt, contact_t& contact) {
 			contact.separationDistance = r;
 			return true;
 		}
+	}
+	else {
+		return ConservativeAdvance(bodyA, bodyB, dt, contact);
 	}
 	return false;
 }

@@ -31,7 +31,7 @@ public:
 	explicit ShapeConvex( const Vec3 * pts, const int num ) {
 		Build( pts, num );
 	}
-	void Build( const Vec3 * pts, const int num );
+	void Build( const Vec3 * pts, const int num ) override;
 
 	Vec3 Support( const Vec3 & dir, const Vec3 & pos, const Quat & orient, const float bias ) const override;
 

@@ -40,6 +40,60 @@ void Scene::Reset() {
 	Initialize();
 }
 
+void AddStandardSandBox(std::vector<Body>& bodies) {
+	Body body;
+
+	body.m_position = Vec3(0, 0, 0);
+	body.m_orientation = Quat(0, 0, 0, 1);
+	body.m_linearVelocity.Zero();
+	body.m_angularVelocity.Zero();
+	body.m_invMass = 0.0f;
+	body.m_elasticity = 0.5f;
+	body.m_friction = 0.5f;
+	body.m_shape = new ShapeBox(g_boxGround, sizeof(g_boxGround)/sizeof(Vec3));
+	bodies.push_back(body);
+
+	body.m_position = Vec3(50, 0, 0);
+	body.m_orientation = Quat(0, 0, 0, 1);
+	body.m_linearVelocity.Zero();
+	body.m_angularVelocity.Zero();
+	body.m_invMass = 0.0f;
+	body.m_elasticity = 0.5f;
+	body.m_friction = 0.0f;
+	body.m_shape = new ShapeBox(g_boxWall0, sizeof(g_boxWall0) / sizeof(Vec3));
+	bodies.push_back(body);
+
+	body.m_position = Vec3(-50, 0, 0);
+	body.m_orientation = Quat(0, 0, 0, 1);
+	body.m_linearVelocity.Zero();
+	body.m_angularVelocity.Zero();
+	body.m_invMass = 0.0f;
+	body.m_elasticity = 0.5f;
+	body.m_friction = 0.0f;
+	body.m_shape = new ShapeBox(g_boxWall0, sizeof(g_boxWall0) / sizeof(Vec3));
+	bodies.push_back(body);
+
+	body.m_position = Vec3(0, 25, 0);
+	body.m_orientation = Quat(0, 0, 0, 1);
+	body.m_linearVelocity.Zero();
+	body.m_angularVelocity.Zero();
+	body.m_invMass = 0.0f;
+	body.m_elasticity = 0.5f;
+	body.m_friction = 0.0f;
+	body.m_shape = new ShapeBox(g_boxWall1, sizeof(g_boxWall1) / sizeof(Vec3));
+	bodies.push_back(body);
+
+	body.m_position = Vec3(0, -25, 0);
+	body.m_orientation = Quat(0, 0, 0, 1);
+	body.m_linearVelocity.Zero();
+	body.m_angularVelocity.Zero();
+	body.m_invMass = 0.0f;
+	body.m_elasticity = 0.5f;
+	body.m_friction = 0.0f;
+	body.m_shape = new ShapeBox(g_boxWall1, sizeof(g_boxWall1) / sizeof(Vec3));
+	bodies.push_back(body);
+}
+
 /*
 ====================================================
 Scene::Initialize
@@ -60,7 +114,7 @@ void Scene::Initialize() {
 			m_bodies.push_back(body);
 		}
 	}
-	*/
+	
 	body.m_position = Vec3(0, 0, 10);
 	body.m_orientation = Quat(0, 0, 0, 1);
 	body.m_invMass = 1.0f;
@@ -78,6 +132,30 @@ void Scene::Initialize() {
 	body.m_friction = 0.5f;
 	body.m_shape = new ShapeSphere(1000.0f);
 	m_bodies.push_back(body);
+	*/
+
+	body.m_position = Vec3(10, 0, 3);
+	body.m_orientation = Quat(0, 0, 0, 1);
+	body.m_linearVelocity = Vec3(-100, 0, 0);
+	body.m_angularVelocity.Zero();
+	body.m_invMass = 1.0f;
+	body.m_elasticity = 0.5f;
+	body.m_friction = 0.5f;
+	body.m_shape = new ShapeSphere(0.5f);
+	m_bodies.push_back(body);
+
+	body.m_position = Vec3(-10, 0, 3);
+	body.m_orientation = Quat(0, 0, 0, 1);
+	body.m_linearVelocity = Vec3(100,0,0);
+	body.m_angularVelocity.Zero();
+	body.m_invMass = 1.0f;
+	body.m_elasticity = 0.5f;
+	body.m_friction = 0.5f;
+	body.m_shape = new ShapeConvex(g_diamond, sizeof(g_diamond)/sizeof(Vec3));
+	//body.m_shape = new ShapeBox(g_boxBody, sizeof(g_boxBody) / sizeof(Vec3));
+	m_bodies.push_back(body);
+	
+	AddStandardSandBox(m_bodies);
 }
 
 int CompareContacts(const void* p1, const void* p2) {
@@ -110,11 +188,11 @@ void Scene::Update( const float dt_sec ) {
 
 	//Broadphase to retain only the possible collsions to reduce collision calculation in the narrow phase
 	std::vector< collisionPair_t > collisionPairs;
-	BroadPhase(m_bodies.data(), (int)m_bodies.size(), collisionPairs, dt_sec);
+	BroadPhase(m_bodies.data(), (int) m_bodies.size(), collisionPairs, dt_sec);
 
 	//narrow phase, where general contact and collision are calculated
 	int numContacts = 0;
-	const int maxContacts = m_bodies.size() * m_bodies.size();
+	const int maxContacts = (int) m_bodies.size() * (int) m_bodies.size();
 	contact_t* contacts = (contact_t*)alloca(sizeof(contact_t) * maxContacts);
 	for (int i = 0; i < collisionPairs.size(); i++) {
 		const collisionPair_t& pair = collisionPairs[i];
