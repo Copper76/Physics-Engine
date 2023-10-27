@@ -19,7 +19,7 @@ public:
 	void Solve() override;
 	void PostSolve() override;
 
-	Quat q0;	// The initial relative quaternion q1^-1 * q2
+	Quat m_q0;	// The initial relative quaternion q1^-1 * q2
 
 	VecN m_cachedLambda;
 	MatMN m_Jacobian;
